@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ashline</title>
+<style>
+  :root {
+    --soot: #14110e;
+    --clay: #2a211c;
+    --paper: #f4efe6;
+    --dust: #b3a394;
+    --brass: #c6a15a;
+    --cinder: #e4572e;
+    --brine: #2ec4b6;
+    --line: rgba(244, 239, 230, 0.16);
+    --ui: system-ui, sans-serif;
+    --num: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+    --gap: 6px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--soot); color: var(--paper); font-family: var(--ui); overflow: hidden; }
+  #view, #view canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
+  #hurt, #flash, #hud { position: fixed; inset: 0; pointer-events: none; }
+  #hurt { background: radial-gradient(circle at center, transparent 45%, rgba(120, 24, 12, 0.85) 100%); opacity: 0; }
+  #flash { background: #f7f1e4; opacity: 0; }
+  #top {
+    position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: stretch; gap: 0;
+    border: 1px solid var(--line); background: rgba(20, 16, 13, 0.72);
+  }
+  #top b, #timer, #money {
+    min-width: 84px; padding: 8px 14px; text-align: center;
+    font-family: var(--num); font-size: 22px; font-weight: 560; letter-spacing: 0.04em;
+  }
+  #score-l { color: var(--cinder); }
+  #score-r { color: var(--brine); }
+  #timer { border-left: 1px solid var(--line); border-right: 1px solid var(--line); min-width: 132px; }
+  #money { position: absolute; top: 18px; right: 22px; font-family: var(--num); font-size: 22px; color: var(--brass); }
+  #bombbar {
+    position: absolute; top: 74px; left: 50%; transform: translateX(-50%);
+    padding: 6px 12px; background: var(--cinder); color: var(--soot);
+    font-family: var(--num); font-size: 14px; letter-spacing: 0.08em;
+  }
+  #radar { position: absolute; top: 18px; left: 18px; width: 148px; height: 148px; }
+  #cross { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+  #cross i { position: absolute; background: var(--paper); opacity: 0.92; box-shadow: 0 0 0 1px rgba(20, 16, 13, 0.65); }
+  #cross i:nth-child(1) { width: 2px; height: 9px; left: -1px; top: calc(-1 * var(--gap) - 9px); }
+  #cross i:nth-child(2) { width: 2px; height: 9px; left: -1px; top: var(--gap); }
+  #cross i:nth-child(3) { height: 2px; width: 9px; top: -1px; left: calc(-1 * var(--gap) - 9px); }
+  #cross i:nth-child(4) { height: 2px; width: 9px; top: -1px; left: var(--gap); }
+  #marker { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; margin: -9px; opacity: 0; }
+  #marker.on { opacity: 1; }
+  #marker i { position: absolute; background: var(--paper); }
+  #marker.head i { background: var(--cinder); }
+  #marker i:nth-child(odd) { width: 2px; height: 7px; }
+  #marker i:nth-child(even) { width: 7px; height: 2px; }
+  #marker i:nth-child(1) { left: 3px; top: 0; transform: rotate(45deg); }
+  #marker i:nth-child(2) { right: 3px; top: 0; transform: rotate(-45deg); }
+  #marker i:nth-child(3) { left: 3px; bottom: 0; transform: rotate(-45deg); }
+  #marker i:nth-child(4) { right: 3px; bottom: 0; transform: rotate(45deg); }
+  #hp, #gun {
+    position: absolute; bottom: 22px; font-family: var(--num);
+  }
+  #hp { left: 22px; }
+  #hp b { display: block; font-size: 52px; font-weight: 560; line-height: 0.9; }
+  #ar-n { color: var(--brass); font-size: 13px; letter-spacing: 0.08em; }
+  #gun { right: 22px; text-align: right; }
+  #mag { font-size: 52px; font-weight: 560; line-height: 0.9; }
+  #res, #gname { display: block; color: var(--dust); font-size: 14px; letter-spacing: 0.06em; }
+  #objective {
+    position: absolute; left: 22px; bottom: 108px; max-width: 36ch;
+    color: var(--dust); font-size: 14px;
+  }
+  #feed { position: absolute; right: 22px; top: 64px; text-align: right; }
+  #feed p { margin: 0 0 4px; min-height: 1em; font-family: var(--num); font-size: 13px; color: var(--paper); }
+  #banner {
+    position: absolute; left: 50%; top: 18%; transform: translateX(-50%);
+    min-width: min(640px, 86vw); padding: 22px 28px; text-align: center;
+    background: rgba(20, 16, 13, 0.78); border-top: 3px solid var(--cinder);
+  }
+  body:not(.posted) #banner { display: none; }
+  #banner strong { display: block; font-size: 28px; font-weight: 560; letter-spacing: 0.04em; }
+  #banner span { color: var(--dust); }
+  #prompt {
+    position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%);
+    pointer-events: auto;
+  }
+  body.locked #prompt, body.shot #prompt { display: none; }
+  #deploy {
+    font: inherit; font-weight: 560; letter-spacing: 0.08em;
+    padding: 12px 18px; border: 0; background: var(--cinder); color: var(--soot); cursor: pointer;
+  }
+  #deploy:focus-visible { outline: 2px solid var(--paper); outline-offset: 3px; }
+  #buy {
+    display: none; position: absolute; top: 176px; left: 18px; width: 260px;
+    padding: 10px 12px; background: rgba(20, 16, 13, 0.9); border: 1px solid var(--line);
+    pointer-events: auto;
+  }
+  body.buying #buy { display: block; }
+  #buy h1 { margin: 0 0 4px; font-size: 18px; font-weight: 560; letter-spacing: 0.14em; }
+  #buy p { margin: 0 0 12px; color: var(--dust); font-size: 13px; }
+  #buy button {
+    display: flex; justify-content: space-between; width: 100%; margin: 0 0 4px;
+    padding: 4px 8px; border: 1px solid var(--line); background: transparent; color: var(--paper);
+    font: inherit; font-size: 13px; cursor: pointer;
+  }
+  #buy button:disabled { color: var(--dust); cursor: default; }
+  #buy button.owned { border-color: var(--brass); color: var(--brass); }
+  #keys { margin: 8px 0 0; color: var(--dust); font-size: 12px; letter-spacing: 0.04em; }
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div id="hurt"></div>
+<div id="flash"></div>
+<div id="hud">
+  <canvas id="radar" width="148" height="148"></canvas>
+  <div id="top">
+    <b id="score-l">0</b>
+    <div id="timer">BUY 0:08</div>
+    <b id="score-r">0</b>
+  </div>
+  <div id="money">$800</div>
+  <div id="bombbar" hidden>CHARGE 0:35</div>
+  <div id="cross" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <div id="marker" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <div id="hp"><b id="hp-n">100</b><span id="ar-n">NO VEST</span></div>
+  <div id="gun"><b id="mag">12</b><span id="res">/ 48</span><span id="gname">Spit</span></div>
+  <div id="objective">Buy, then the lanes open</div>
+  <div id="feed"><p></p><p></p><p></p><p></p></div>
+  <div id="banner"><strong id="banner-title"></strong><span id="banner-copy"></span></div>
+  <aside id="buy">
+    <h1>ASHLINE</h1>
+    <p>Cinder Wharf. Cinder plants, Brine holds.</p>
+    <button type="button" data-id="lath"><span>1 Lath rifle</span><span>$2700</span></button>
+    <button type="button" data-id="chatter"><span>2 Chatter</span><span>$1500</span></button>
+    <button type="button" data-id="armor"><span>3 Vest</span><span>$650</span></button>
+    <button type="button" data-id="helm"><span>4 Vest + hood</span><span>$1000</span></button>
+    <button type="button" data-id="frag"><span>5 Cinder pot</span><span>$300</span></button>
+    <button type="button" data-id="smoke"><span>6 Soot can</span><span>$300</span></button>
+    <button type="button" data-id="flash"><span>7 Flare</span><span>$200</span></button>
+    <button type="button" data-id="kit"><span>8 Defuse kit</span><span>$400</span></button>
+    <div id="keys">WASD move · mouse look · click fire · R reload · Ctrl crouch · Shift walk · E plant · G throw</div>
+  </aside>
+  <div id="prompt"><button id="deploy" type="button">Click to deploy</button></div>
+</div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/three.module.min.js"
+  }
+}
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
